@@ -1,35 +1,63 @@
-# Bioinformatics Analysis: An analysis of knockout method’s impact on resulting differentially expressed genes (DEGs) from bulk gene knockout RNA-seq data
+# Knockout-method effects on differential expression (MorPhiC RNA-seq)
 
-The RNA-seq data used in this analysis was provided by **Morphic**, which supplied the datasets and study context for our research. We performed downstream analysis and visualization using R within a JupyterHub environment.
+R / DESeq2 analysis of a MorPhiC bulk RNA-seq study asking whether the *method* used to knock out a transcription factor changes which genes come out differentially expressed.
 
-This report examines the impact of individually knocking out four genes—MXD1, RUNX1, NCOA3, and BHLHE40—on the expression of other genes by identifying differentially expressed genes (DEGs) through DESeq2 analysis. The study compares DEG profiles across three experimental conditions: KO vs. WT, CE vs. WT, and PTC vs. WT. DESeq2 is used to identify DEGs, and visualizations are generated to illustrate gene expression changes and highlight differences among the groups.
+![screenshot](docs/screenshot.png)
+<!-- Capture: one volcano plot page (e.g. BHLHE40 KO vs WT) side by side with the matching UpSet plot from the output PDFs. -->
 
-## Repository Structure
+## What it does
 
-- `r_analysis/BioinformaticsCode.ipynb`: Main notebook containing all R code. This notebook performs the analysis and generates a PDF with volcano plots for each gene analyzed.
-- `data/`: Input datasets required to run the notebook.
-- `paper/BioinformaticsAnalysis.docx`: Final report detailing the analysis and results.
+For each of four transcription factors — **MXD1, RUNX1, NCOA3, BHLHE40** — the notebook compares three knockout schemes against wild type:
 
-## How to Run
+| Contrast | Meaning |
+|---|---|
+| KO vs WT | conventional knockout |
+| CE vs WT | critical-exon deletion |
+| PTC vs WT | premature termination codon |
 
-1. Clone the repository  
-2. Upload the contents of this repo (including the notebook and CSV files) into your JupyterHub environment  
-3. Open `r_analysis/BioinformaticsCode.ipynb` in Jupyter  
-4. Run all cells to execute the analysis and generate results
+It runs DESeq2 per gene, calls differentially expressed genes (DEGs), and produces two PDFs:
 
-**Note:** This project was developed and tested in a JupyterHub environment. It can also be run locally using any environment that supports R notebooks (e.g., VS Code with Jupyter extension or RStudio with the appropriate plugins), provided all required packages are installed and paths are preserved.
+- `volcano_plots_group_b.pdf` — 12 volcano plots (4 genes x 3 schemes), top up/down-regulated and most significant genes labelled
+- `upset_plots_group_b.pdf` — 4 UpSet plots showing how much the DEG sets overlap across the three schemes for each gene
 
-## Tools Used
+The written report is in `Bioinformatics_Analysis/paper/`.
 
-- **R** in **JupyterHub**
-- Packages: `BiocManager`, `ggplot2`, `ggrepel`, `UpSetR`, `DESeq2`, `sva`, `rtracklayer`, `GenomicRanges`
-- GitHub for version control
+## How it works
 
-## Authors
+1. **Load.** Raw gene counts (`GSE288289_study2_genesRawCounts.csv`, 38,592 genes x 82 samples, tab-separated) and sample metadata (`metadata_study2.csv`: GEO accession, sample, type, gene, scheme). Sample names are normalised (lane suffix `_L00x` stripped, dots to hyphens) so metadata rows match count columns.
+2. **Subset.** Only the four genes of interest are analysed; a gene needs at least 3 replicates in every group.
+3. **Filter.** Genes with fewer than 10 counts in at least 3 samples are dropped (the DESeq2 vignette default).
+4. **Model.** `DESeqDataSetFromMatrix(design = ~ Type)` with `WT` as the reference level; `DESeq()` estimates size factors, dispersions and fits the negative-binomial GLM (Wald test). Contrasts `Type_KO_vs_WT`, `Type_CE_vs_WT`, `Type_PTC_vs_WT` are extracted.
+5. **Call DEGs.** |log2 fold change| > 0.5 and adjusted p < 0.05. Ensembl IDs are mapped to gene names with an annotation table from g:Profiler's ID converter.
+6. **Plot.** `ggplot2` + `ggrepel` volcano plots; `UpSetR` set overlaps.
+7. **Batch correction (explored, not used).** A `sva::svaseq` surrogate-variable workflow is included for BHLHE40 as an example, but SV-adjusted results diverged sharply from both the unadjusted plots and the MorPhiC data portal, so the final analysis omits it.
 
-- Conner Webber, James Simpson, Austin Maggert, Lindsay Ding
+## Run it
 
+```bash
+git clone https://github.com/jimothy-dev/BioinformaticsStudy
+cd BioinformaticsStudy/Bioinformatics_Analysis
+```
 
-## Licence
+Copy the two CSVs from `data/` next to the notebook (it reads them from the working directory), then open `r_analysis/BioinformaticsCode.ipynb` in Jupyter with an R kernel (IRkernel) and run all cells. The first cell installs Bioconductor 3.18 (`DESeq2`, `sva`, `rtracklayer`, `GenomicRanges`, `ggplot2`) plus `ggrepel` and `UpSetR` from CRAN. Developed on R 4.3.3 in JupyterHub; RStudio or VS Code with the Jupyter extension also work.
 
-[GPL-3.0](LICENSE). Copyright (c) 2026 James Simpson.
+The notebook also expects `gene_annotations.csv` (g:Profiler output for the count-matrix Ensembl IDs) in the working directory — see Limitations.
+
+## Data sources
+
+- **GEO GSE288289** — "RNA-seq of male KOLF2.2J hiPSC-derived trophoblast cell lines homozygous null for seven different transcription factors", generated by the [MorPhiC](https://morphic.bio/) consortium, which also supplied the study context.
+- Gene annotations: g:Profiler g:Convert (Kolberg et al., *Nucleic Acids Research*, 2023).
+
+## Limitations / next steps
+
+- `gene_annotations.csv` is not in the repository; regenerate it from g:Profiler (input: the Ensembl IDs in the count file; columns `initial_alias`, `name`) or commit it.
+- The MXD1 / NCOA3 / BHLHE40 sample names in the counts file are spelled `MDX1` / `NC0A3` / `BMLHE40`; the metadata `Gene` column is the source of truth and the code keys on it.
+- Without batch correction, any lane or batch effect in the 82-sample design is unmodelled; the divergence seen with `svaseq` deserves a closer look rather than exclusion.
+- No functional enrichment (GO / pathway) on the DEG sets yet — a natural next step with g:Profiler or `clusterProfiler`.
+- Course project by a team of four; contributions were shared across the notebook and report.
+
+## Author
+
+James Simpson — https://github.com/jimothy-dev — with Conner Webber, Austin Maggert and Lindsay Ding.
+
+Licence: [GPL-3.0](LICENSE).
