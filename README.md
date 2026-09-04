@@ -2,9 +2,6 @@
 
 R / DESeq2 analysis of a MorPhiC bulk RNA-seq study asking whether the *method* used to knock out a transcription factor changes which genes come out differentially expressed.
 
-![screenshot](docs/screenshot.png)
-<!-- Capture: one volcano plot page (e.g. BHLHE40 KO vs WT) side by side with the matching UpSet plot from the output PDFs. -->
-
 ## What it does
 
 For each of four transcription factors — **MXD1, RUNX1, NCOA3, BHLHE40** — the notebook compares three knockout schemes against wild type:
